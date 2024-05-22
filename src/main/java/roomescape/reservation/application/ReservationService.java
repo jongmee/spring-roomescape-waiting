@@ -59,11 +59,12 @@ public class ReservationService {
     }
 
     private void validateReservationCapacity(Reservation reservation, List<Reservation> reservationsInSameTime) {
-        int countInSameTime = reservationsInSameTime.size();
-        if (countInSameTime > 0 && reservation.isBooking()) {
+        boolean existInSameTime = reservationRepository.existsByDateAndTimeAndTheme(
+                reservation.getDate(), reservation.getTime(), reservation.getTheme());
+        if (existInSameTime && reservation.isBooking()) {
             throw new ViolationException("해당 시간대에 예약이 모두 찼습니다.");
         }
-        if (countInSameTime == 0 && reservation.isWaiting()) {
+        if (!existInSameTime && reservation.isWaiting()) {
             throw new ViolationException("해당 시간대에 예약이 가능합니다. 대기 말고 예약을 해주세요.");
         }
     }

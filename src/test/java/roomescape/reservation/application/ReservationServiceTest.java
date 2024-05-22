@@ -16,7 +16,13 @@ import roomescape.reservation.domain.Theme;
 import roomescape.reservation.domain.WaitingReservation;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -112,6 +118,36 @@ class ReservationServiceTest extends ServiceTest {
         // when & then
         assertThatThrownBy(() -> reservationService.create(duplicatedReservation))
                 .isInstanceOf(ViolationException.class);
+    }
+
+    @Test
+    @DisplayName("동시 요청에서 동일한 테마, 날짜, 시간에 한 팀만 예약할 수 있다.")
+    void createWithOverflowCapacityWithMultiThread() throws InterruptedException, ExecutionException {
+        // given
+        int threadCount = 5;
+        ExecutorService service = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch latch = new CountDownLatch(threadCount);
+        List<Future<?>> futures = new ArrayList<>();
+
+        // when
+        for (int i = 0; i < threadCount; i++) {
+            Future<?> future = service.submit(() -> {
+                try {
+                    reservationService.create(MIA_RESERVATION(miaReservationTime, wootecoTheme, mia, BOOKING));
+                } finally {
+                    latch.countDown();
+                }
+            });
+            futures.add(future);
+        }
+
+        // then
+        for (Future<?> future : futures) {
+            future.get();
+        }
+        latch.await();
+        service.shutdown();
+        assertThat(reservationService.findAll()).hasSize(1);
     }
 
     @Test
